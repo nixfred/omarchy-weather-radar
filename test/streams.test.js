@@ -32,10 +32,15 @@ const PROCESSES = [
 ]
 
 // Files read straight into the process, and why each one carries no ceiling of
-// its own. Both are deliberate; see the tests for the reasoning.
+// its own. All three are deliberate; see the tests for the reasoning.
 const FILE_READS = [
   { id: "locationFile", file: "Service.qml" },
   { id: "basemapFile", file: "Service.qml" },
+  // The alert latch. This one is ours end to end — nothing else on the machine
+  // writes it, it is a single small JSON object, and it is written by the same
+  // FileView that reads it, so its size is bounded by what this plugin puts
+  // there rather than by a ceiling.
+  { id: "latchFile", file: "Service.qml" },
 ]
 
 function idsOf(pattern) {
