@@ -82,3 +82,28 @@ test("worsening weather still escalates past an adopted latch", () => {
   assert.strictEqual(decision.notify, true)
   assert.strictEqual(decision.notifiedLevel, Alerts.SEVERE)
 })
+
+test("a level off disk that is not a band is rejected, not clamped", () => {
+  // The record is a file: anything on the machine can write it and it outlives
+  // a reboot, so it is untrusted input. Rejecting means "you have told them
+  // nothing" — one possible duplicate. Clamping an out-of-range level down to
+  // SEVERE would adopt a latch nobody set, and silence is the worse direction.
+  const at = level => Alerts.adoptedLevel(
+    { location: HERE, level: level, at: NOW }, HERE, NOW + 1000, Alerts.LATCH_MAX_AGE_MS)
+  for (const junk of [99, Infinity, -5, NaN, 0, "banana", null, undefined, {}]) {
+    assert.strictEqual(at(junk), Alerts.CLEAR, String(junk))
+  }
+  // Real bands still adopt, including the string and fractional forms JSON can carry.
+  assert.strictEqual(at(Alerts.SEVERE), Alerts.SEVERE)
+  assert.strictEqual(at("3"), Alerts.HEAVY)
+  assert.strictEqual(at(2.6), Alerts.HEAVY)
+})
+
+test("a rejected latch cannot silence the storm it claimed to cover", () => {
+  // The failure mode: a latch pinned above every band, so nothing re-notifies.
+  const adopted = Alerts.adoptedLevel(
+    { location: HERE, level: 99, at: NOW }, HERE, NOW + 1000, Alerts.LATCH_MAX_AGE_MS)
+  assert.strictEqual(adopted, Alerts.CLEAR)
+  assert.strictEqual(
+    Alerts.decideNotification(Alerts.SEVERE, adopted, "Heavy", true).notify, true)
+})
