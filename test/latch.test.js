@@ -107,3 +107,38 @@ test("a rejected latch cannot silence the storm it claimed to cover", () => {
   assert.strictEqual(
     Alerts.decideNotification(Alerts.SEVERE, adopted, "Heavy", true).notify, true)
 })
+
+// --- the record is bounded by construction ------------------------------------
+
+test("a runaway location name cannot grow the record it is written into", () => {
+  // `name` comes off a file shared with the stock weather widget, read there as
+  // String(data.name || "") with no cap. Without a bound here a long one is
+  // rewritten into the latch on every escalation.
+  const huge = "51.5,-0.1|" + "x".repeat(50000)
+  const record = Alerts.latchRecord(Alerts.SEVERE, huge, NOW)
+  assert.ok(record.location.length <= 160, "record location must be capped")
+  assert.ok(JSON.stringify(record).length < 300, "the whole record stays small")
+})
+
+test("a capped key still matches the place it was written for", () => {
+  // Capping on write while comparing uncapped would orphan the record — the
+  // latch failing open, which is the direction this file exists to avoid.
+  const huge = "51.5,-0.1|" + "x".repeat(50000)
+  const record = Alerts.latchRecord(Alerts.SEVERE, huge, NOW)
+  assert.strictEqual(Alerts.adoptedLevel(record, huge, NOW, Alerts.LATCH_MAX_AGE_MS), Alerts.SEVERE)
+})
+
+test("a record written before the cap existed is still adopted", () => {
+  // Records already on disk carry the full name; they must not be silently
+  // dropped by a cap introduced after they were written.
+  const huge = "51.5,-0.1|" + "x".repeat(50000)
+  const legacy = { location: huge, level: Alerts.SEVERE, at: NOW }
+  assert.strictEqual(Alerts.adoptedLevel(legacy, huge, NOW, Alerts.LATCH_MAX_AGE_MS), Alerts.SEVERE)
+})
+
+test("two different places that share a capped prefix are still different places", () => {
+  const a = "51.5,-0.1|" + "x".repeat(50000) + "A"
+  const b = "52.9,-1.4|" + "x".repeat(50000) + "B"
+  const record = Alerts.latchRecord(Alerts.SEVERE, a, NOW)
+  assert.strictEqual(Alerts.adoptedLevel(record, b, NOW, Alerts.LATCH_MAX_AGE_MS), 0)
+})

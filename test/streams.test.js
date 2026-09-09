@@ -36,10 +36,12 @@ const PROCESSES = [
 const FILE_READS = [
   { id: "locationFile", file: "Service.qml" },
   { id: "basemapFile", file: "Service.qml" },
-  // The alert latch. This one is ours end to end — nothing else on the machine
-  // writes it, it is a single small JSON object, and it is written by the same
-  // FileView that reads it, so its size is bounded by what this plugin puts
-  // there rather than by a ceiling.
+  // The alert latch. A small record this plugin normally owns, read without a
+  // byte ceiling exactly as `locationFile` already is. It is a file like any
+  // other — anything on the machine can write it and it outlives a reboot —
+  // so the defence is not ownership: `adoptedLevel` rejects any level outside
+  // the bands, and `latchPlaceKey` caps the only unbounded field, which leaves
+  // the record bounded by construction rather than by good behaviour upstream.
   { id: "latchFile", file: "Service.qml" },
 ]
 
